@@ -22,10 +22,7 @@ async fn health_check(thread_index: web::Data<u16>) -> HttpResponse {
 }
 
 // Handler para obtener un usuario
-async fn get_user(
-    user_id: web::Path<Uuid>,
-    repo: web::Data<Arc<RepositoryInjector>>,
-) -> HttpResponse {
+async fn get_user(user_id: web::Path<Uuid>, repo: web::Data<RepositoryInjector>) -> HttpResponse {
     match repo.get_user(&user_id) {
         Ok(user) => HttpResponse::Ok().json(user),
         Err(err) => HttpResponse::InternalServerError().body(err.to_string()),
@@ -45,7 +42,9 @@ async fn main() -> std::io::Result<()> {
 
     let thread_counter = Arc::new(AtomicU16::new(1));
 
-    let repo = RepositoryInjector::new_shared(MemoryRepository::default());
+    //BUILDING SHARED SERVER
+    let repo = RepositoryInjector::new(MemoryRepository::default());
+    let repo = web::Data::new(repo);
 
     //BUILDING SHARED SERVER
     HttpServer::new(move || {
