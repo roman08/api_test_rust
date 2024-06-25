@@ -2,7 +2,7 @@ mod repository;
 mod user;
 
 use actix_web::{get, web, App, HttpResponse, HttpServer, Responder};
-use repository::{MemoryRepository, Repository};
+use repository::{MemoryRepository, RepositoryInjector};
 use std::sync::{
     atomic::{AtomicU16, Ordering},
     Arc,
@@ -22,10 +22,7 @@ async fn health_check(thread_index: web::Data<u16>) -> HttpResponse {
 }
 
 // Handler para obtener un usuario
-async fn get_user(
-    user_id: web::Path<Uuid>,
-    repo: web::Data<Arc<MemoryRepository>>,
-) -> HttpResponse {
+async fn get_user(user_id: web::Path<Uuid>, repo: web::Data<RepositoryInjector>) -> HttpResponse {
     match repo.get_user(&user_id) {
         Ok(user) => HttpResponse::Ok().json(user),
         Err(err) => HttpResponse::InternalServerError().body(err.to_string()),
@@ -45,7 +42,9 @@ async fn main() -> std::io::Result<()> {
 
     let thread_counter = Arc::new(AtomicU16::new(1));
 
-    let repo = Arc::new(MemoryRepository::default());
+    //BUILDING SHARED SERVER
+    let repo = RepositoryInjector::new(MemoryRepository::default());
+    let repo = web::Data::new(repo);
 
     HttpServer::new(move || {
         let thread_index = thread_counter.fetch_add(1, Ordering::SeqCst);
