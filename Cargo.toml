@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 actix-web = "4"
+actix-rt = "2.10.0"
 dotenv = "0.15.0"
 uuid ={ version = "*", features = ["serde", "v4"]}
 chrono = { version = "*", features = ["serde"]}

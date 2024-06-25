@@ -1,32 +1,18 @@
+mod health;
 mod repository;
 mod user;
+mod v1;
 
 use actix_web::{get, web, App, HttpResponse, HttpServer, Responder};
-use repository::{MemoryRepository, RepositoryInjector};
+use repository::MemoryRepository;
 use std::sync::{
     atomic::{AtomicU16, Ordering},
-    Arc,
+    Arc, Mutex,
 };
-use uuid::Uuid;
 
 #[get("/{name}")]
 async fn hello(name: web::Path<String>) -> impl Responder {
     format!("Hello {}!", &name)
-}
-
-// Handler para la ruta de salud
-async fn health_check(thread_index: web::Data<u16>) -> HttpResponse {
-    HttpResponse::Ok()
-        .append_header(("thread-id", thread_index.to_string()))
-        .finish()
-}
-
-// Handler para obtener un usuario
-async fn get_user(user_id: web::Path<Uuid>, repo: web::Data<RepositoryInjector>) -> HttpResponse {
-    match repo.get_user(&user_id) {
-        Ok(user) => HttpResponse::Ok().json(user),
-        Err(err) => HttpResponse::InternalServerError().body(err.to_string()),
-    }
 }
 
 // Handler para la ruta principal
@@ -42,11 +28,9 @@ async fn main() -> std::io::Result<()> {
 
     let thread_counter = Arc::new(AtomicU16::new(1));
 
-    //BUILDING SHARED SERVER
-    let repo = RepositoryInjector::new(MemoryRepository::default());
-    let repo = web::Data::new(repo);
+    // Construir el repositorio compartido envuelto en Arc y Mutex
+    let repo = Arc::new(Mutex::new(MemoryRepository::default()));
 
-    //BUILDING SHARED SERVER
     HttpServer::new(move || {
         let thread_index = thread_counter.fetch_add(1, Ordering::SeqCst);
         println!("Starting thread {}", thread_index);
@@ -55,8 +39,8 @@ async fn main() -> std::io::Result<()> {
             .app_data(web::Data::new(thread_index))
             .app_data(web::Data::new(repo.clone()))
             .route("/", web::get().to(index))
-            .service(web::resource("/user/{user_id}").route(web::get().to(get_user)))
-            .route("/health", web::get().to(health_check))
+            .configure(v1::service)
+            .configure(health::service)
             .service(hello)
     })
     .bind(&address)
